@@ -1,0 +1,9 @@
+dspine-hybrid (NetProjects)
+Copyright 2026 Paris Michalas, NetProjects. Licensed under the Apache License 2.0.
+
+Builds on Tencent DSpine (https://github.com/Tencent/DSpine, Apache-2.0,
+commit 0cc92d8), whose dspine_mlx package it imports, and on mlx-lm
+(Apple, MIT). dspine_hybrid/hybrid_target.py contains a copy of
+mlx-lm 0.32.2's qwen3_5.GatedDeltaNet.__call__; dspine_hybrid/draft.py
+contains adapted copies of dspine_mlx DraftAttention.__call__ and
+load_draft. Not affiliated with Tencent, Alibaba/Qwen or Apple.

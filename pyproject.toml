@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dspine-hybrid-mlx"
+version = "0.1.0"
+description = "DSpine speculative decoding for hybrid (GatedDeltaNet) Qwen3.8-27B targets on Apple MLX"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+dependencies = [
+    "mlx>=0.32",
+    "mlx-lm==0.32.2",
+    "huggingface_hub",
+    "dspine-mlx @ git+https://github.com/Tencent/DSpine.git@0cc92d857a8f7bf252de67995ad4c19251620143#subdirectory=dspine_mlx",
+]
+
+[project.optional-dependencies]
+bench = ["datasets", "pytest"]
+
+[project.scripts]
+dspine-hybrid-generate = "dspine_hybrid.generate:main"
+
+[project.urls]
+Homepage = "https://netprojects.com"
+
+[tool.setuptools.packages.find]
+include = ["dspine_hybrid*"]

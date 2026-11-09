@@ -1,0 +1,6 @@
+mlx>=0.32
+mlx-lm==0.32.2
+huggingface_hub
+datasets
+pytest
+# plus: pip install --no-deps -e <Tencent/DSpine@0cc92d8>/dspine_mlx
