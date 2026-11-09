@@ -33,8 +33,8 @@ def test_recording_layer_is_bit_identical():
     c1 = make_prompt_cache(ref)
     l1 = ref(toks, c1)
     adapter.reset()
-    l2, _ = adapter.prefill(toks)
-    assert _eq(l1, l2)
+    l2, _ = adapter.prefill(toks)  # one chunk; only the last position's logits
+    assert _eq(l1[:, -1:], l2)
     nxt = mx.random.randint(0, VOCAB, (1, 9))
     l1 = ref(nxt, c1)
     l2, _ = adapter.verify(nxt)
@@ -179,3 +179,32 @@ def test_dspine_greedy_fp32_target(seed):
     margin, spread, msg = d
     print("fp32 " + msg + f"; block-vs-single noise floor {noise:.2e}")
     assert margin <= max(4 * noise, 1e-4 * spread), "fp32 divergence above numerical noise: " + msg
+
+
+def test_chunked_prefill_matches_one_shot(monkeypatch):
+    """Chunked prefill: last-position logits, all hidden features and cache states match a one-shot forward."""
+    from dspine_hybrid import hybrid_target as ht
+
+    model = make_target(7)
+    adapter = HybridTargetAdapter(model, FakeTokenizer(), TARGET_IDS)
+    mx.random.seed(7)
+    prompt = mx.random.randint(0, VOCAB - 4, (1, 37))
+    adapter.reset()
+    from dspine_mlx.target import TargetAdapter
+
+    ref_logits, ref_hidden = TargetAdapter.prefill(adapter, prompt)
+    ref_states = _states(adapter.cache)
+    mx.eval(ref_logits, ref_hidden, ref_states)
+    monkeypatch.setattr(ht, "PREFILL_CHUNK", 8)
+    logits, hidden = adapter.prefill(prompt)
+    assert logits.shape == (1, 1, ref_logits.shape[-1])
+    assert hidden.shape == ref_hidden.shape
+
+    def close(a, b):
+        a, b = a.astype(mx.float32), b.astype(mx.float32)
+        return mx.max(mx.abs(a - b)).item() <= 3e-2 * max(mx.max(mx.abs(b)).item(), 1.0)
+
+    assert close(logits[0, -1], ref_logits[0, -1])
+    assert close(hidden, ref_hidden)
+    for (k1, a1, b1), (k2, a2, b2) in zip(_states(adapter.cache), ref_states):
+        assert k1 == k2 and a1.shape == a2.shape and close(a1, a2) and close(b1, b2)

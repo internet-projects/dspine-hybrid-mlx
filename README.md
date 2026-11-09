@@ -11,24 +11,56 @@ Tencent's MLX package (`dspine_mlx`) supports pure-attention targets such as Qwe
 
 ## Results (MacBook Pro M5 Max, 128 GB)
 
-**Decode speed (thinking on, so about 3 to 5 tokens accepted per round).** Greedy, 512 new tokens, 10 prompts (2 each from GSM8K, MATH-500, HumanEval, MBPP and MT-Bench), bf16 draft, default settings:
+All speeds are greedy decoding, compared with plain mlx-lm on the same target. The output is the target's own (see below).
 
-| Target build | Plain mlx-lm | With DSpine | Speedup | Verify block | Peak memory |
-|---|---|---|---|---|---|
-| 4-bit (`mlx-community/Qwen3.8-27B-4bit`) | 31.9 tok/s | **59.5 tok/s** | **×1.87** | 5 | 26 GB |
-| 8-bit (group 64)¹ | 17.9 tok/s | **49.7 tok/s** | **×2.77** | 5 | 39 GB |
-| bf16 | 9.1 tok/s | **39.6 tok/s** | **×4.34** | 16 | 60 GB |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/speed-dark.png">
+  <img alt="Decode speed with and without DSpine: 4-bit 31.9 vs 64.7, 8-bit 17.9 vs 52.1, bf16 9.1 vs 39.1 tokens per second" src="assets/speed-light.png" width="720">
+</picture>
 
-¹ Made with `mlx_lm.convert --hf-path Qwen/Qwen3.8-27B -q --q-bits 8 --q-group-size 64`.
+**Decode speed, thinking on.** 512 new tokens, 10 prompts (2 each from GSM8K, MATH-500, HumanEval, MBPP and MT-Bench), default settings (4-bit drafter):
 
-**Why the block is 5 on quantized builds.** The drafter is trained to propose 16 tokens. On an Apple GPU, though, a quantized 27B forward pass costs about the same for 1 to 5 tokens and then steps up. On the 4-bit build that's 31 ms for 1 token, 42 ms for 5 and 88 ms for 16. Checking 5 tokens per round accepts fewer tokens than checking 16 (3.4 vs 4.2 per round), but each round is much cheaper, so the net speed is higher. Use `--block-size` to choose a different block.
+| Target build | Plain mlx-lm | With DSpine | Speedup | Verify block |
+|---|---|---|---|---|
+| 4-bit (`mlx-community/Qwen3.8-27B-4bit`) | 31.9 tok/s | **64.7 tok/s** | **×2.03** | 5 |
+| 8-bit (`mlx-community/Qwen3.8-27B-8bit`)¹ | 17.9 tok/s | **52.1 tok/s** | **×2.91** | 5 |
+| bf16 | 9.1 tok/s | **39.1 tok/s** | **×4.31** | 16 |
 
-| 4-bit target, verify block | 3 | 4 | 5 | 6 | 8 | 12 | 16 |
-|---|---|---|---|---|---|---|---|
-| DSpine tok/s | 55.2 | 59.5 | 59.5 | 50.3 | 46.1 | 35.0 | 41.9 |
-| Tokens per round | 2.50 | 2.99 | 3.35 | 3.55 | 3.81 | 4.07 | 4.18 |
+¹ Measured on a local conversion with the same settings as `mlx-community/Qwen3.8-27B-8bit` (8-bit, group 64, affine), made with `mlx_lm.convert --hf-path Qwen/Qwen3.8-27B -q --q-bits 8 --q-group-size 64`.
 
-**Acceptance and quality (thinking off, full 16-token block).** These are not the conditions of the speed table above: with thinking off, short math answers reach about 7.2 tokens per round. Greedy, first 50 GSM8K test questions:
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/thinking-off-dark.png">
+  <img alt="Thinking off: 4-bit plain 32.0, DSpine 68.8, --adaptive 71.0; 8-bit plain 18.0, DSpine 52.8, --adaptive 54.0 tokens per second" src="assets/thinking-off-light.png" width="720">
+</picture>
+
+**Decode speed, thinking off.** Same prompts. `--adaptive` picks how many drafted tokens to check each round, which pays off when acceptance varies a lot, as it does with thinking off:
+
+| Target build | Plain mlx-lm | DSpine (default) | DSpine `--adaptive` |
+|---|---|---|---|
+| 4-bit | 32.0 tok/s | **68.8 tok/s** (×2.15) | **71.0 tok/s** (×2.22) |
+| 8-bit | 18.0 tok/s | **52.8 tok/s** (×2.93) | **54.0 tok/s** (×3.00) |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/long-context-dark.png">
+  <img alt="Long prompts: 4-bit 33k 28.3 vs 57.3, 8-bit 33k 16.7 vs 47.7 tokens per second" src="assets/long-context-light.png" width="720">
+</picture>
+
+**Long prompts.** A reference document of about 9k or 33k tokens, then a writing task. Thinking off, 256 new tokens, default settings:
+
+| Target build | Prompt | Plain mlx-lm | With DSpine | Speedup |
+|---|---|---|---|---|
+| 4-bit | 9k tokens | 30.6 tok/s | **63.6 tok/s** | ×2.08 |
+| 4-bit | 33k tokens | 28.3 tok/s | **57.3 tok/s** | ×2.02 |
+| 8-bit | 9k tokens | 17.5 tok/s | **50.7 tok/s** | ×2.89 |
+| 8-bit | 33k tokens | 16.7 tok/s | **47.7 tok/s** | ×2.85 |
+
+Peak memory at 33k tokens: 29 GB (4-bit), 42 GB (8-bit).
+
+**Why the block is 5 on quantized builds.** The drafter is trained to propose 16 tokens. On an Apple GPU, though, a quantized 27B forward pass costs about the same for 1 to 5 tokens and then steps up. On the 4-bit build that's 34 ms for 1 token, 42 ms for 5 and 89 ms for 16. Checking 5 tokens per round accepts fewer tokens than checking 16, but each round is much cheaper, so the net speed is higher. Use `--block-size` to choose a different block.
+
+**Why a 4-bit drafter.** The drafter runs once per round, so making it smaller saves time on every round. A 4-bit drafter proposes almost the same tokens as the bf16 one (3.40 vs 3.35 accepted per round on the 4-bit target), and the target still checks every token. Use `--draft-bits 8`, or `--draft-bits 16` for the original bf16 drafter.
+
+**Acceptance and quality (thinking off, bf16 drafter, full 16-token block).** These are not the conditions of the speed tables: short math answers reach about 7.2 tokens per round. Greedy, first 50 GSM8K test questions:
 
 | Target build | Tokens per round | GSM8K accuracy |
 |---|---|---|
@@ -60,7 +92,7 @@ dspine-hybrid-generate \
   --max-tokens 512 --baseline
 ```
 
-`--baseline` also runs plain decoding and prints the speedup. With thinking off, this exact command (a code prompt) ran at 74.1 tok/s vs 32.2 plain (×2.30) on the 4-bit build. The draft can also be given as `tencent/Qwen3.8-27B-DSpine-b16`; the files are the same. The verify block defaults to 5 on quantized targets and 16 on bf16. `--thinking` turns on the chat template's thinking mode, `--temperature` enables sampling, and `--profile` prints a per-phase time split.
+`--baseline` also runs plain decoding and prints the speedup. The draft can also be given as `tencent/Qwen3.8-27B-DSpine-b16`; the files are the same. The verify block defaults to 5 on quantized targets and 16 on bf16, and the drafter is quantized to 4 bits when it loads. `--adaptive` chooses the verify length each round (greedy only; it measures this machine's target cost at startup, which takes a few seconds). `--thinking` turns on the chat template's thinking mode, `--temperature` enables sampling, and `--profile` prints a per-phase time split.
 
 From Python:
 
@@ -75,19 +107,20 @@ out, stats = gen.generate(ids, max_tokens=256)
 print(tok.decode(out), stats.decode_tps, "tok/s")
 ```
 
-By default `load` caps MLX's buffer cache at 2 GB and sets a 60 GB memory limit. Override these with `DSPINE_CACHE_GB` and `DSPINE_MEMORY_LIMIT_GB`.
+`load(..., adaptive=True)` gives the adaptive generator, and `draft_bits=None` keeps the bf16 drafter. By default `load` caps MLX's buffer cache at 2 GB and sets a 60 GB memory limit. Override these with `DSPINE_CACHE_GB` and `DSPINE_MEMORY_LIMIT_GB`.
 
 ## Tests and benchmarks
 
 ```bash
 pip install -e ".[bench]"
-pytest -q                                   # 17 tiny-model tests
+pytest -q                                   # 26 tiny-model tests
 python scripts/bench_accept.py --help       # acceptance vs Tencent's card + output check
 python scripts/speed.py --help              # plain vs DSpine decode speed
 python scripts/quality.py --help            # GSM8K accuracy through DSpine
 python scripts/noise_floor.py --help        # block-vs-single rounding on a real model
 python scripts/block_sweep.py --help        # forward cost and DSpine speed per verify block
 python scripts/profile_ab.py --help         # time split per round (draft / tail / verify / rollback)
+python scripts/long_context.py --help       # speed with 9k / 33k-token prompts
 ```
 
 ## Notes
@@ -95,7 +128,8 @@ python scripts/profile_ab.py --help         # time split per round (draft / tail
 - Tested with mlx 0.32.4 and mlx-lm 0.32.2. `dspine_hybrid/hybrid_target.py` includes a copy of mlx-lm 0.32.2's GatedDeltaNet forward pass, plus recording. Other mlx-lm versions print a warning; run the tests before trusting them.
 - Batch size 1 only, which is the same as `dspine_mlx`.
 - Where the time goes, on the 4-bit build with block 16: target verify 88%, drafter 8%, the hybrid-state rollback under 1%.
-- Speeds come from the same machine. The plain baselines and the bf16 row were measured on an idle Mac. The block-5 rows ran with other local services up, which left the plain single-step time unchanged (31.0 vs 31.3 ms on 4-bit).
+- Long prompts: the prefill runs in 2048-token chunks and keeps logits only for the last position, and the drafter only reads the last 8192 positions, which is all its sliding window can see.
+- Speeds come from the same machine, with no other jobs running. The bf16 row was measured with other local services paused; on bf16 the drafter is a small share of each round, so the 4-bit drafter makes little difference there (39.1 vs 39.3 tok/s with the bf16 drafter). The plain thinking-on baselines are from the v0.1 measurements; v0.2 does not change plain decoding.
 
 ## License and credits
 

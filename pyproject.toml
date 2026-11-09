@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dspine-hybrid-mlx"
-version = "0.1.0"
+version = "0.2.0"
 description = "DSpine speculative decoding for hybrid (GatedDeltaNet) Qwen3.8-27B targets on Apple MLX"
 readme = "README.md"
 license = { text = "Apache-2.0" }

@@ -34,7 +34,19 @@ def apply_memory_rules(memory_limit_gb: float | None = None) -> None:
     mx.set_memory_limit(int(lim * GB))
 
 
-def load(target: str, draft: str, *, draft_bits: int | None = None, block_size=None):
+# Drafter backbone bits when none are given. A 4-bit drafter proposes almost the same tokens and
+# runs faster; the output is still the target's own (the target verifies every token).
+DEFAULT_DRAFT_BITS = 4
+
+
+def load(target: str, draft: str, *, draft_bits: int | None = DEFAULT_DRAFT_BITS, block_size=None,
+         adaptive: bool = False, alpha: float = 1.0):
+    """Return (generator, target adapter, draft config, window).
+
+    draft_bits: 4 or 8 quantizes the drafter backbone, 0/None keeps it bf16.
+    adaptive: choose the verify length every round from the drafter's confidence and this
+    machine's measured target cost (greedy only; sampling uses the fixed block).
+    """
     d, cfg, window = load_draft(draft)
     if draft_bits:
         d = quantize_draft(d, bits=int(draft_bits), group_size=64, mode="affine")
@@ -42,5 +54,11 @@ def load(target: str, draft: str, *, draft_bits: int | None = None, block_size=N
     d.bind(t.model)
     if block_size is None:
         block_size = default_block_size(t.model)
-    gen = DSpineGenerator(t, d, block_size=block_size)
+    if adaptive:
+        from .adaptive import AdaptiveDSpineGenerator, measure_cost
+
+        cost = measure_cost(t, list(range(1000, 1256)))
+        gen = AdaptiveDSpineGenerator(t, d, cost=cost, alpha=alpha, block_size=16, fixed_block_size=block_size)
+    else:
+        gen = DSpineGenerator(t, d, block_size=block_size)
     return gen, t, cfg, window

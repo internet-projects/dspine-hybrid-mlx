@@ -83,3 +83,42 @@ def test_parse_window_rejects_partial():
     raw = draft_config(2, window=4096)
     with pytest.raises(ValueError):
         parse_window(raw)
+
+
+def test_first_call_context_crop_matches_full_context():
+    """A fresh cache gets only the last W context features; drafts match the full-context run."""
+    W = 16
+    target = make_target(0)
+    d, _, _ = make_draft(5, window=W)
+    d.bind(target)
+    assert d.window == W
+    a = _run(d, 50, rounds=4, seed=3)
+    d.window = None  # layers keep the window; only the crop is switched off
+    b = _run(d, 50, rounds=4, seed=3)
+    d.window = W
+    for x, y in zip(a, b):
+        assert x.shape == y.shape
+        diff = mx.max(mx.abs(x.astype(mx.float32) - y.astype(mx.float32))).item()
+        scale = mx.max(mx.abs(y.astype(mx.float32))).item()
+        assert diff <= 2e-2 * max(scale, 1.0), (diff, scale)
+
+
+def test_crop_skipped_when_cache_not_empty_or_short():
+    W = 16
+    target = make_target(0)
+    d, _, _ = make_draft(6, window=W)
+    d.bind(target)
+    seen = []
+    orig = dmod.DSpineDraftModel.__call__
+
+    def spy(self, th, block, caches=None):
+        seen.append(None if th is None else th.shape[1])
+        return orig(self, th, block, caches)
+
+    dmod.DSpineDraftModel.__call__ = spy
+    try:
+        _run(d, 50, rounds=2)
+        _run(d, 10, rounds=1)
+    finally:
+        dmod.DSpineDraftModel.__call__ = orig
+    assert seen == [W, 5, 10]

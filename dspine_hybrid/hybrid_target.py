@@ -26,12 +26,15 @@ from typing import Any, Optional
 import mlx.core as mx
 import mlx.nn as nn
 from mlx_lm.models import qwen3_5
-from mlx_lm.models.cache import ArraysCache
+from mlx_lm.models.cache import ArraysCache, make_prompt_cache
 from mlx_lm.models.gated_delta import gated_delta_update, normalize_qk
 
 from dspine_mlx.target import TargetAdapter
 
 _BASE_GDN = qwen3_5.GatedDeltaNet
+
+# Prompt tokens per prefill forward (mlx-lm's generate uses 2048 too).
+PREFILL_CHUNK = 2048
 
 
 class _Record:
@@ -228,6 +231,29 @@ class HybridTargetAdapter(TargetAdapter):
         for mod in self._linear:
             if mod is not None:
                 mod._box.recording = on
+
+    def prefill(self, tokens: mx.array, capture: bool = True):
+        """Chunked prefill that returns only the last position's logits.
+
+        A one-shot prefill materialises logits for every prompt position: at 32k
+        tokens and a 248k vocabulary that is about 16 GB, held for the whole
+        decode and computed for nothing. Chunks whose logits are never evaluated
+        skip the LM head entirely (MLX is lazy). Hidden features are kept for
+        every position, as the drafter needs them.
+        """
+        self.cache = make_prompt_cache(self.model)
+        n = int(tokens.shape[1])
+        hs = []
+        logits = hidden = None
+        for s in range(0, n, PREFILL_CHUNK):
+            logits, hidden = self._forward(tokens[:, s : s + PREFILL_CHUNK], capture=capture)
+            if capture:
+                hs.append(hidden)
+            if s + PREFILL_CHUNK < n:
+                mx.eval([c.state for c in self.cache] + hs[-1:])
+        if capture and len(hs) > 1:
+            hidden = mx.concatenate(hs, axis=1)
+        return logits[:, -1:], hidden
 
     def verify(self, tokens: mx.array, capture: bool = True):
         self._set_recording(True)

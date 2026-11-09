@@ -92,8 +92,6 @@ class WindowedDraftAttention(DraftAttention):
             else:
                 keys = cache.keys[:, :, :offset, :]
                 values = cache.values[:, :, :offset, :]
-            keys = mx.concatenate([keys, prop_keys], axis=2)
-            values = mx.concatenate([values, prop_values], axis=2)
         else:
             if x_ctx is None:
                 raise ValueError(
@@ -102,19 +100,21 @@ class WindowedDraftAttention(DraftAttention):
             ctx_keys, ctx_values = self._context_kv(x_ctx, rope, 0)
             queries = rope(queries)
             prop_keys = rope(prop_keys)
-            keys = mx.concatenate([ctx_keys, prop_keys], axis=2)
-            values = mx.concatenate([ctx_values, prop_values], axis=2)
+            keys, values = ctx_keys, ctx_values
 
-        K = keys.shape[2]
+        # Context keys sit at 0..K-L-1, proposal queries/keys at K-L..K-1.
+        K = keys.shape[2] + L
         W = self.window
         if W is None or K <= W:
+            keys = mx.concatenate([keys, prop_keys], axis=2)
+            values = mx.concatenate([values, prop_values], axis=2)
             mask = "causal"
         else:
-            # Absolute positions: key j sits at j, query i at K - L + i.
+            # Slice the context before concatenating, so a long cache is not copied every round.
             q0 = K - L
             start = max(0, q0 - (W - 1))
-            keys = keys[:, :, start:, :]
-            values = values[:, :, start:, :]
+            keys = mx.concatenate([keys[:, :, start:, :], prop_keys], axis=2)
+            values = mx.concatenate([values[:, :, start:, :], prop_values], axis=2)
             kpos = mx.arange(start, K)[None, :]
             qpos = mx.arange(q0, K)[:, None]
             mask = (kpos <= qpos) & (kpos > qpos - W)
@@ -126,7 +126,29 @@ class WindowedDraftAttention(DraftAttention):
         return self.o_proj(output)
 
 
+class WindowedDSpineDraftModel(DSpineDraftModel):
+    """Feeds a fresh draft cache only the last ``window`` context features.
+
+    With an 8192 window no proposal query can see a context position older than
+    the last 8192, so the rest only costs a long draft "prefill" inside the first
+    decode round (about 32k tokens through the drafter at 32k context). RoPE is
+    relative and the window mask is shift-consistent, so the drafts are the same
+    up to rounding.
+    """
+
+    window: int | None = None
+
+    def __call__(self, target_hidden, block_ids, caches=None):
+        W = self.window
+        if (W is not None and target_hidden is not None and caches is not None
+                and target_hidden.shape[1] > W and all(getattr(c, "offset", 1) == 0 for c in caches)):
+            target_hidden = target_hidden[:, -W:]
+        return super().__call__(target_hidden, block_ids, caches)
+
+
 def set_window(model: DSpineDraftModel, window: int | None) -> None:
+    model.__class__ = WindowedDSpineDraftModel
+    model.window = window
     for layer in model.layers:
         layer.self_attn.__class__ = WindowedDraftAttention
         layer.self_attn.window = window

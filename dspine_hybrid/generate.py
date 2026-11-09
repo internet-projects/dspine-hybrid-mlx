@@ -1,7 +1,7 @@
 """Command line: DSpine speculative decoding on a hybrid Qwen3.8-27B MLX target.
 
     dspine-hybrid-generate --target mlx-community/Qwen3.8-27B-4bit \
-        --draft tencent/Qwen3.8-27B-DSpine-b16 --prompt "Explain quicksort."
+        --draft netprojects/Qwen3.8-27B-DSpine-b16-MLX --prompt "Explain quicksort."
 """
 
 from __future__ import annotations
@@ -12,13 +12,13 @@ import mlx.core as mx
 
 from dspine_mlx.generate import DSpineGenerator, _load_tokenizer_eos, baseline_generate
 
-from .run import apply_memory_rules, load
+from .run import DEFAULT_DRAFT_BITS, apply_memory_rules, load
 
 
 def main() -> None:
     p = argparse.ArgumentParser("dspine-hybrid-generate")
     p.add_argument("--target", required=True, help="MLX Qwen3.8-27B build (local path or HF repo id)")
-    p.add_argument("--draft", default="tencent/Qwen3.8-27B-DSpine-b16", help="DSpine draft (path or HF repo id)")
+    p.add_argument("--draft", default="netprojects/Qwen3.8-27B-DSpine-b16-MLX", help="DSpine draft (path or HF repo id)")
     p.add_argument("--prompt", default="What is 1+1? Answer briefly.")
     p.add_argument("--thinking", action="store_true", help="enable the chat template's thinking mode")
     p.add_argument("--max-tokens", type=int, default=512)
@@ -28,7 +28,10 @@ def main() -> None:
     p.add_argument("--min-p", type=float, default=0.0)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--block-size", type=int, default=None, help="verify block (default: 5 for quantized targets, 16 for bf16)")
-    p.add_argument("--draft-bits", type=int, default=None, help="quantize the draft backbone (8 or 4)")
+    p.add_argument("--draft-bits", type=int, default=None,
+                   help="drafter backbone bits: 4 (default), 8, or 16 for the unquantized bf16 drafter")
+    p.add_argument("--adaptive", action="store_true",
+                   help="greedy only: choose how many drafted tokens to verify each round (faster with thinking off)")
     p.add_argument("--memory-limit-gb", type=float, default=None)
     p.add_argument("--profile", action="store_true", help="per-phase timing")
     p.add_argument("--baseline", action="store_true", help="also run plain greedy and print the speedup")
@@ -36,8 +39,9 @@ def main() -> None:
 
     apply_memory_rules(a.memory_limit_gb)
     mx.random.seed(a.seed)
-    gen, target, _, _ = load(a.target, a.draft, draft_bits=a.draft_bits, block_size=a.block_size)
-    if a.profile:
+    bits = DEFAULT_DRAFT_BITS if a.draft_bits is None else (None if a.draft_bits >= 16 else a.draft_bits)
+    gen, target, _, _ = load(a.target, a.draft, draft_bits=bits, block_size=a.block_size, adaptive=a.adaptive)
+    if a.profile and not a.adaptive:
         gen = DSpineGenerator(target, gen.draft, block_size=gen.block_size, profile=True)
     tok = target.tokenizer
     ids = tok.apply_chat_template([{"role": "user", "content": a.prompt}],
