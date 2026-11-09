@@ -11,7 +11,7 @@ Tencent's MLX package (`dspine_mlx`) supports pure-attention targets such as Qwe
 
 ## Results (MacBook Pro M5 Max, 128 GB)
 
-Decode speed. Greedy, thinking on, 512 new tokens, 10 prompts (2 each from GSM8K, MATH-500, HumanEval, MBPP and MT-Bench), bf16 draft, default settings:
+**Decode speed (thinking on, so about 3 to 5 tokens accepted per round).** Greedy, 512 new tokens, 10 prompts (2 each from GSM8K, MATH-500, HumanEval, MBPP and MT-Bench), bf16 draft, default settings:
 
 | Target build | Plain mlx-lm | With DSpine | Speedup | Verify block | Peak memory |
 |---|---|---|---|---|---|
@@ -28,13 +28,13 @@ Decode speed. Greedy, thinking on, 512 new tokens, 10 prompts (2 each from GSM8K
 | DSpine tok/s | 55.2 | 59.5 | 59.5 | 50.3 | 46.1 | 35.0 | 41.9 |
 | Tokens per round | 2.50 | 2.99 | 3.35 | 3.55 | 3.81 | 4.07 | 4.18 |
 
-Acceptance with the drafter's full 16-token block, as average tokens committed per verify round, plus answer quality. Greedy, thinking off, first 50 GSM8K test questions:
+**Acceptance and quality (thinking off, full 16-token block).** These are not the conditions of the speed table above: with thinking off, short math answers reach about 7.2 tokens per round. Greedy, first 50 GSM8K test questions:
 
 | Target build | Tokens per round | GSM8K accuracy |
 |---|---|---|
 | 4-bit | 7.25 | 90% |
 | 8-bit | 7.32 | 84% |
-| bf16 | – | 86% |
+| bf16 | 7.33 | 86% |
 | Tencent's model card (GSM8K, T=0) | 7.20 | |
 
 **Same output as plain decoding.** On a real model, logits from a 16-token verify pass differ slightly from one-token steps through rounding (99th percentile 1.2 on Qwen3.8-27B 4-bit). Every point where DSpine's greedy output departed from plain greedy was a near-tie of at most 0.25 logit, well inside that rounding. On small fp32 test models the outputs are token-identical.
@@ -55,19 +55,19 @@ This installs `mlx-lm` 0.32.2 and Tencent's `dspine_mlx` at the tested commit (`
 ```bash
 dspine-hybrid-generate \
   --target mlx-community/Qwen3.8-27B-4bit \
-  --draft tencent/Qwen3.8-27B-DSpine-b16 \
+  --draft netprojects/Qwen3.8-27B-DSpine-b16-MLX \
   --prompt "Write a Python function that checks whether a number is prime." \
   --max-tokens 512 --baseline
 ```
 
-`--baseline` also runs plain decoding and prints the speedup. The verify block defaults to 5 on quantized targets and 16 on bf16. `--thinking` turns on the chat template's thinking mode, `--temperature` enables sampling, and `--profile` prints a per-phase time split.
+`--baseline` also runs plain decoding and prints the speedup. With thinking off, this exact command (a code prompt) ran at 74.1 tok/s vs 32.2 plain (×2.30) on the 4-bit build. The draft can also be given as `tencent/Qwen3.8-27B-DSpine-b16`; the files are the same. The verify block defaults to 5 on quantized targets and 16 on bf16. `--thinking` turns on the chat template's thinking mode, `--temperature` enables sampling, and `--profile` prints a per-phase time split.
 
 From Python:
 
 ```python
 from dspine_hybrid.run import load
 
-gen, target, _, _ = load("mlx-community/Qwen3.8-27B-4bit", "tencent/Qwen3.8-27B-DSpine-b16")
+gen, target, _, _ = load("mlx-community/Qwen3.8-27B-4bit", "netprojects/Qwen3.8-27B-DSpine-b16-MLX")
 tok = target.tokenizer
 ids = tok.apply_chat_template([{"role": "user", "content": "Hello!"}],
                               add_generation_prompt=True, enable_thinking=False)
