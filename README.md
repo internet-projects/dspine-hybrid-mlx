@@ -2,9 +2,11 @@
 
 **DSpine speculative decoding for Qwen3.8-27B on Apple Silicon (MLX).**
 
+**Now upstream:** Qwen3.8-27B support from this kit is merged into Tencent's official `dspine_mlx` ([Tencent/DSpine#3](https://github.com/Tencent/DSpine/pull/3), merged 12 Nov 2026). Use Tencent's package for the official route; this kit stays as a one-line install with `--adaptive` block sizing.
+
 [DSpine](https://github.com/Tencent/DSpine) is Tencent Hunyuan's parallel drafter: a small 5-layer draft model proposes a block of up to 16 tokens, and the target model checks the whole block in one pass. The output is the target's own output, only faster.
 
-Tencent's MLX package (`dspine_mlx`) supports pure-attention targets such as Qwen3-8B. Qwen3.8-27B is a hybrid model, with 48 GatedDeltaNet (linear-attention) layers and 16 full-attention layers. Its recurrent state can't simply be cut back when part of a draft is rejected. This kit adds the two missing pieces, so [`tencent/Qwen3.8-27B-DSpine-b16`](https://huggingface.co/tencent/Qwen3.8-27B-DSpine-b16) runs on any MLX build of Qwen3.8-27B:
+Tencent's MLX package (`dspine_mlx`) 0.1.0 supported only pure-attention targets such as Qwen3-8B. Qwen3.8-27B is a hybrid model, with 48 GatedDeltaNet (linear-attention) layers and 16 full-attention layers. Its recurrent state can't simply be cut back when part of a draft is rejected. This kit adds the two missing pieces, so [`tencent/Qwen3.8-27B-DSpine-b16`](https://huggingface.co/tencent/Qwen3.8-27B-DSpine-b16) runs on any MLX build of Qwen3.8-27B:
 
 - **Exact rollback for GatedDeltaNet layers.** During verification the kit records each linear layer's inputs and starting state. When only part of the block is accepted, it replays the recurrence over the accepted tokens, so the state matches a plain decode of that prefix.
 - **The draft's 8192-token sliding window**, which the checkpoint uses and `dspine_mlx` 0.1.0 rejects.
@@ -81,6 +83,8 @@ pip install "git+https://github.com/internet-projects/dspine-hybrid-mlx.git"
 ```
 
 This installs `mlx-lm` 0.32.2 and Tencent's `dspine_mlx` at the tested commit (`0cc92d8`).
+
+Tencent's `dspine_mlx` from commit `c66bf44` onwards includes the hybrid support itself.
 
 ## Run
 
