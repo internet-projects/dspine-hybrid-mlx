@@ -82,9 +82,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install "git+https://github.com/internet-projects/dspine-hybrid-mlx.git"
 ```
 
-This installs `mlx-lm` 0.32.2 and Tencent's `dspine_mlx` at the tested commit (`0cc92d8`).
-
-Tencent's `dspine_mlx` from commit `c66bf44` onwards includes the hybrid support itself.
+This installs `mlx-lm` 0.32.2 and Tencent's `dspine_mlx` at the tested commit (`d211869`), which includes the hybrid support itself (merged in `c66bf44`). v0.2.0 and older pin `0cc92d8` and stop with a TypeError next to a newer `dspine_mlx`; v0.2.1 fixes that.
 
 ## Run
 

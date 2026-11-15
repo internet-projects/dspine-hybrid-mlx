@@ -9,8 +9,8 @@ Builds on Tencent's ``dspine_mlx`` (Apache-2.0) and adds:
   * an optional adaptive verify length (``dspine_hybrid.adaptive``).
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 # Upstream code this kit is tested against.
-DSPINE_COMMIT = "0cc92d857a8f7bf252de67995ad4c19251620143"
+DSPINE_COMMIT = "d211869ac168b756e197f7607ff37cd342b50fb2"
 MLX_LM_VERSION = "0.32.2"

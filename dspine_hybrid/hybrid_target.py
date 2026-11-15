@@ -33,6 +33,11 @@ from dspine_mlx.target import TargetAdapter
 
 _BASE_GDN = qwen3_5.GatedDeltaNet
 
+try:  # dspine_mlx after Tencent/DSpine#3 installs its own recording class; we take the layer over.
+    from dspine_mlx.hybrid import RecordingGatedDeltaNet as _UPSTREAM_GDN
+except ImportError:
+    _UPSTREAM_GDN = None
+
 # Prompt tokens per prefill forward (mlx-lm's generate uses 2048 too).
 PREFILL_CHUNK = 2048
 
@@ -197,7 +202,7 @@ def install_recording(model) -> list:
         if mod is None:
             linear.append(None)
             continue
-        if type(mod) not in (_BASE_GDN, RecordingGatedDeltaNet):
+        if type(mod) not in (_BASE_GDN, RecordingGatedDeltaNet, _UPSTREAM_GDN):
             raise TypeError(
                 f"unsupported linear-attention module {type(mod).__name__}; "
                 "only mlx_lm.models.qwen3_5.GatedDeltaNet is validated"

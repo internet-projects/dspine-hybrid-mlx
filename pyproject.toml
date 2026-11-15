@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dspine-hybrid-mlx"
-version = "0.2.0"
+version = "0.2.1"
 description = "DSpine speculative decoding for hybrid (GatedDeltaNet) Qwen3.8-27B targets on Apple MLX"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -13,7 +13,7 @@ dependencies = [
     "mlx>=0.32",
     "mlx-lm==0.32.2",
     "huggingface_hub",
-    "dspine-mlx @ git+https://github.com/Tencent/DSpine.git@0cc92d857a8f7bf252de67995ad4c19251620143#subdirectory=dspine_mlx",
+    "dspine-mlx @ git+https://github.com/Tencent/DSpine.git@d211869ac168b756e197f7607ff37cd342b50fb2#subdirectory=dspine_mlx",
 ]
 
 [project.optional-dependencies]
