@@ -92,6 +92,9 @@ class WindowedDraftAttention(DraftAttention):
             else:
                 keys = cache.keys[:, :, :offset, :]
                 values = cache.values[:, :, :offset, :]
+                if keys.shape[0] == 1 and B > 1:      # several blocks against one cached context (twin pass)
+                    keys = mx.broadcast_to(keys, (B,) + tuple(keys.shape[1:]))
+                    values = mx.broadcast_to(values, (B,) + tuple(values.shape[1:]))
         else:
             if x_ctx is None:
                 raise ValueError(
@@ -137,12 +140,18 @@ class WindowedDSpineDraftModel(DSpineDraftModel):
     """
 
     window: int | None = None
+    fast_kernels = False      # also build the drafter's quantized projections with the verify kernels
 
     def __call__(self, target_hidden, block_ids, caches=None):
         W = self.window
         if (W is not None and target_hidden is not None and caches is not None
                 and target_hidden.shape[1] > W and all(getattr(c, "offset", 1) == 0 for c in caches)):
             target_hidden = target_hidden[:, -W:]
+        if getattr(self, "fast_kernels", False):
+            from . import fast_verify
+
+            with fast_verify.armed():
+                return super().__call__(target_hidden, block_ids, caches)
         return super().__call__(target_hidden, block_ids, caches)
 
 

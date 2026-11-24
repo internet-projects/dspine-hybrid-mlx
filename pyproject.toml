@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dspine-hybrid-mlx"
-version = "0.2.1"
+version = "0.4.0"
 description = "DSpine speculative decoding for hybrid (GatedDeltaNet) Qwen3.8-27B targets on Apple MLX"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -18,9 +18,22 @@ dependencies = [
 
 [project.optional-dependencies]
 bench = ["datasets", "pytest"]
+# Fast mode (--fast): prebuilt oMLX Metal kernels, no compiler or Metal toolchain needed. The wheels are built
+# with packaging/build_kernel_wheel.py and attached to the GitHub release; they are bound to mlx 0.32.4.
+# Python 3.11 to 3.15 have wheels; on other versions the kit installs and runs without the fast kernels.
+fast = [
+    "mlx==0.32.4",
+    "mlx-vlm @ git+https://github.com/Neywa-Labs/mlx-vlm@138d7617d39653b39a5cbc379b1b5907a4481d67",
+    "dspine-omlx-kernels @ https://github.com/internet-projects/dspine-hybrid-mlx/releases/download/v0.4.0/dspine_omlx_kernels-0.1.0-cp311-cp311-macosx_15_0_arm64.whl ; python_version == '3.11'",
+    "dspine-omlx-kernels @ https://github.com/internet-projects/dspine-hybrid-mlx/releases/download/v0.4.0/dspine_omlx_kernels-0.1.0-cp312-cp312-macosx_15_0_arm64.whl ; python_version == '3.12'",
+    "dspine-omlx-kernels @ https://github.com/internet-projects/dspine-hybrid-mlx/releases/download/v0.4.0/dspine_omlx_kernels-0.1.0-cp313-cp313-macosx_15_0_arm64.whl ; python_version == '3.13'",
+    "dspine-omlx-kernels @ https://github.com/internet-projects/dspine-hybrid-mlx/releases/download/v0.4.0/dspine_omlx_kernels-0.1.0-cp314-cp314-macosx_15_0_arm64.whl ; python_version == '3.14'",
+    "dspine-omlx-kernels @ https://github.com/internet-projects/dspine-hybrid-mlx/releases/download/v0.4.0/dspine_omlx_kernels-0.1.0-cp315-cp315-macosx_15_0_arm64.whl ; python_version == '3.15'",
+]
 
 [project.scripts]
 dspine-hybrid-generate = "dspine_hybrid.generate:main"
+dspine-hybrid-serve = "dspine_hybrid.serve:main"
 
 [project.urls]
 Homepage = "https://netprojects.com"

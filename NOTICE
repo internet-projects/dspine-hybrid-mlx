@@ -7,3 +7,15 @@ commit 0cc92d8), whose dspine_mlx package it imports, and on mlx-lm
 mlx-lm 0.32.2's qwen3_5.GatedDeltaNet.__call__; dspine_hybrid/draft.py
 contains adapted copies of dspine_mlx DraftAttention.__call__ and
 load_draft. Not affiliated with Tencent, Alibaba/Qwen or Apple.
+
+dspine_hybrid/multirow_attn.py is a copy of mlx-dspark's
+src/mlx_dspark/multirow_attn.py (https://github.com/ARahim3/mlx-dspark,
+MIT, Copyright (c) 2026 erahim3, commit b4a40fb26594); its licence text is
+at the top of that file.
+
+The optional fast paths (--fast-verify, --a8-prefill) call Metal kernels
+from oMLX (https://github.com/jundot/omlx, Apache-2.0) when it is
+installed. No oMLX code is included in this repository. The
+dspine-omlx-kernels wheel attached to the releases is oMLX's unmodified
+Python package at commit e1a402cf with its kernel extensions built; it
+carries oMLX's LICENSE. Not affiliated with the oMLX project.

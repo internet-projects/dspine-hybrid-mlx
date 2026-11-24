@@ -30,6 +30,7 @@ def main() -> None:
     p.add_argument("--tokens", type=int, default=512)
     p.add_argument("--thinking", action="store_true")
     p.add_argument("--memory-limit-gb", type=float, default=None)
+    p.add_argument("--fast", action="store_true", help="measure the --fast setup instead of the default rounds")
     p.add_argument("--save-prompts", default=None, help="write the prompt texts (to time another server on the same prompts)")
     p.add_argument("--out", required=True)
     a = p.parse_args()
@@ -41,10 +42,14 @@ def main() -> None:
         with open(a.save_prompts, "w") as f:
             json.dump([{"bench": n, "text": t} for n, t in texts], f)
 
-    res = {"tokens": a.tokens, "thinking": a.thinking, "prompts": len(texts), "targets": {}}
+    res = {"tokens": a.tokens, "thinking": a.thinking, "fast": a.fast, "prompts": len(texts), "targets": {}}
     for spec in a.target:
         name, path = spec.split("=", 1)
-        gen, target, _, _ = load(path, a.draft)
+        fast = dict(adaptive=True, confidence="calibrated", fast_verify=True, tree=True, a8_prefill=True) if a.fast else {}
+        gen, target, _, _ = load(path, a.draft, **fast)
+        if a.fast:
+            print(f"[speed] fast verify kernels: {'on' if target.fast_verify else 'NOT AVAILABLE'}, "
+                  f"int8 prefill: {'on' if target.a8_prefill is not None else 'NOT AVAILABLE'}", flush=True)
         tok = target.tokenizer
         stop = _load_tokenizer_eos(tok)
         # warm-up (kernels, tables)
