@@ -2,7 +2,7 @@
 
 **DSpine speculative decoding for Qwen3.8-27B on Apple Silicon (MLX).**
 
-**Now upstream:** Qwen3.8-27B support from this kit is merged into Tencent's official `dspine_mlx` ([Tencent/DSpine#3](https://github.com/Tencent/DSpine/pull/3), merged 12 Nov 2026). Use Tencent's package for the official route; this kit stays as a one-line install with `--adaptive` block sizing and a `--fast` mode for M5 Macs.
+**Now upstream:** Qwen3.8-27B support from this kit ([Tencent/DSpine#3](https://github.com/Tencent/DSpine/pull/3), merged 12 Nov 2026) and the prompt cache across turns with copy drafts ([Tencent/DSpine#21](https://github.com/Tencent/DSpine/pull/21), merged 25 Nov 2026) are in Tencent's official `dspine_mlx`. Use Tencent's package for the official route; this kit adds a local OpenAI-compatible server, `--adaptive` block sizing, a `--fast` mode for M5 Macs and a one-line install.
 
 [DSpine](https://github.com/Tencent/DSpine) is Tencent Hunyuan's parallel drafter: a small 5-layer draft model proposes a block of up to 16 tokens, and the target model checks the whole block in one pass. The output is the target's own output, only faster.
 
